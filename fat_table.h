@@ -1,19 +1,30 @@
-class __attribute__((__packed__)) fat_table{
+#ifndef HONEY_FAT_TABLE
+#define HONEY_FAT_TABLE
+
+#include <stdio.h>
+#include <stdlib.h>
+
+class fat_table{
 	public:
-	    unsigned char tabela_FAT[bytes_per_sector];
-        unsigned int fat_deslocamento;
-        unsigned int fat_setor;
-        unsigned int desloc_entrada;
-        unsigned short valor_tabela;
+		unsigned int numero_setores;
+	    unsigned short* tabela_FAT;
+        
+		fat_table( unsigned int numero_setores, unsigned short bytes_per_sector = 512 );
+		void WritetoFile( FILE* file, unsigned short bytes_per_sector );
 };
 
-fat_table::fat_table(unsigned char tabela_FAT[bytes_per_sector], unsigned int fat_deslocamento,
-                     unsigned int fat_setor, unsigned int desloc_entrada,
-                     unsigned short valor_tabela){
-
-	this->tabela_FAT[bytes_per_sector] = tabela_FAT[bytes_per_sector];
-	this->fat_deslocamento = cluster_atual * 2;
-	this->fat_setor = fat_primeiro_setor + (fat_deslocamento / bytes_per_sector);
-	this->desloc_entrada = fat_deslocamento % bytes_per_sector;;
-	this->valor_tabela = *(unsigned short*)&tabela_FAT[desloc_entrada];;
+fat_table::fat_table( unsigned int numero_setores, unsigned short bytes_per_sector ){
+	
+	this->numero_setores = numero_setores;
+	tabela_FAT = (unsigned short*) calloc( numero_setores*bytes_per_sector, sizeof(short) );
+	
+	//tabela_FAT[0] = 0xfff8;
+	//tabela_FAT[1] = 0xfff8;
+	
 }
+
+void fat_table::WritetoFile( FILE* file, unsigned short bytes_per_sector ){
+	fwrite( this->tabela_FAT, sizeof(short), this->numero_setores*bytes_per_sector, file );
+}
+
+#endif

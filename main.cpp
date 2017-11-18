@@ -1,11 +1,12 @@
 #include <iostream>
-#include <string.h>
-#include <stdlib.h>
+//~ #include <string.h>
+//~ #include <stdlib.h>
 using namespace std;
 
 #include "boot_record.h"
 #include "directory_entry.h"
 #include "fat_table.h"
+#include "HoneyFileSystem.h"
 
 int main( int argc, char *argv[] ){
 	
@@ -22,7 +23,7 @@ int main( int argc, char *argv[] ){
 	//~ }
 	
 	
-	FILE* pendrive_ptr = fopen( "fatpreenchida.img", "r" );
+	FILE* pendrive_ptr = fopen( "fatpreenchida.img", "wb+" );
 	if( pendrive_ptr == NULL ){
 		printf( "Deu Ruim\n");
 		return -1;
@@ -37,10 +38,15 @@ int main( int argc, char *argv[] ){
 		//~ }
 		//~ fclose( pendrive_ptr );
 		
+		HoneyFileSystem hfs;
+
+		hfs.fastFormat( pendrive_ptr );
+		printf("uhul\n");
+		
 		
 	}
 		
-	
+	fclose(pendrive_ptr);
 	
 	return 0;
 }
