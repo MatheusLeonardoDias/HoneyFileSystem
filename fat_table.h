@@ -18,8 +18,7 @@ fat_table::fat_table( unsigned int numero_setores, unsigned short bytes_per_sect
 	this->numero_setores = numero_setores;
 	tabela_FAT = (unsigned short*) calloc( numero_setores*bytes_per_sector, sizeof(short) );
 	
-	//tabela_FAT[0] = 0xfff8;
-	//tabela_FAT[1] = 0xfff8;
+	tabela_FAT[0] = 0xffff;
 	
 }
 

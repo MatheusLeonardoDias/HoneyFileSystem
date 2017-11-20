@@ -34,7 +34,7 @@ class __attribute__((__packed__)) directory_entry{
 };
 
 void directory_entry::WritetoFile( FILE* file ){
-	fwrite(this->name_file, 1, 8, file);
+	fwrite(this->name_file, 1, 12, file);
 	fwrite(this->extension, 1, 3, file);
 	fwrite(&this->attribute_file, sizeof(char), 1, file);
 	fwrite(&this->creation_time, sizeof(short), 1, file );

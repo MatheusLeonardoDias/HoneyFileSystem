@@ -12,6 +12,7 @@ class __attribute__((__packed__)) boot_record{
 		unsigned short numero_entradas_diretorio;
 		unsigned short numero_total_setores;
 		unsigned short numero_setores_fat;
+		unsigned short keep_power_of_two;
 
 		boot_record( unsigned short bytes_per_sector = 512, unsigned short numero_setores_por_cluster = 128,
 						unsigned short numero_setores_reservados = 1, unsigned short numero_fat = 1,
@@ -25,6 +26,7 @@ class __attribute__((__packed__)) boot_record{
 			this->numero_total_setores = numero_total_setores;
 			this->numero_setores_fat = numero_setores_fat;
 			this->numero_fat = numero_fat;
+			this->keep_power_of_two = 0x3432;
 		}
 
 		void WritetoFile( FILE* file );
@@ -32,7 +34,7 @@ class __attribute__((__packed__)) boot_record{
 };
 
 void boot_record::WritetoFile( FILE* file ){
-	fwrite( this, sizeof(this), 1, file );
+	fwrite( this, 16, 1, file );
 }
 
 #endif
