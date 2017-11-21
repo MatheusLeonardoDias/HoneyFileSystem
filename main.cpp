@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string.h>
 //~ #include <string.h>
 //~ #include <stdlib.h>
 using namespace std;
@@ -8,61 +9,278 @@ using namespace std;
 #include "fat_table.h"
 #include "HoneyFileSystem.h"
 
+void printErrorMessage( ){
+	printf( "Wrong arguments!" );
+}
+
 int main( int argc, char *argv[] ){
-	
-	
-	
-	/* Tratamento dos argumentos */
-	//~ for(int i = 1; i <= argc; i++ ){
-		//~ printf("%s\n", argv[i] );
-		//~ if( strcmp(argv[i], "-total_setores" ) ){
-			//~ i++;
-			//~ char *p;
-			//~ total_setores = strtol( argv[i], &p, 10);
-		//~ }
-	//~ }
-	
-	
-	FILE* pendrive_ptr = fopen( "fatpreenchida.img", "wb+" );
-	if( pendrive_ptr == NULL ){
-		printf( "Deu Ruim\n");
-		return -1;
-	}
-	
 	HoneyFileSystem hfs;
+	FILE* pendrive_ptr;
 
-	hfs.fastFormat( pendrive_ptr );
-	
-	FILE* input_file = fopen( "input.txt", "rb+" );
-	if( input_file == NULL ){
-		printf( "Deu Ruim mas foi quase\n" );
-		return -1;
-	}
-	
-	hfs.allocateFile( pendrive_ptr, 0, "seramds", "oii", input_file );
-
-	fclose( input_file );
-
-	FILE* output_file = fopen( "output.txt", "wb+" );
-	if( output_file == NULL ){
-		printf( "Deu Ruim mas foi quase\n" );
-		return -1;
+	char* pendrive_name;
+	if(argc > 1){
+		pendrive_name = argv[1];
+		pendrive_ptr = fopen( pendrive_name, "r+" );
+		if( pendrive_ptr == NULL ){
+			printf( "Deu Ruim\n");
+			return -1;
+		}
+		rewind(pendrive_ptr);
+	}else{
+		printErrorMessage();
+		exit(-1);
 	}
 
-	hfs.transferFile( pendrive_ptr, 0, 1, output_file );
-	
-	fclose(output_file);
-	
-	hfs.createSubDirectory( pendrive_ptr, 0, "novo" );
+	char* operation;	
+	if( argc > 2 ){
+		operation = argv[2];
+		if( !strcmp( operation, "fastformat" ) ){
+			pendrive_ptr = fopen( pendrive_name, "w+" );
+			if( pendrive_ptr == NULL ){
+				printf( "Deu Ruim\n");
+				return -1;
+			}
 
-	string param = "/novo/agrvai.txt";
+			hfs.fastFormat( pendrive_ptr );
+		}else if( !strcmp( operation, "secureformat" ) ){
+			pendrive_ptr = fopen( pendrive_name, "w+" );
+			if( pendrive_ptr == NULL ){
+				printf( "Deu Ruim\n");
+				return -1;
+			}
 
-	printf("%d\n", hfs.findFolderCluster( pendrive_ptr, "novo", 0) );
-	
-	pair< unsigned short, unsigned short> ans = hfs.findFileCluster( pendrive_ptr, "seramds", "oii", 0);	
-	printf("%d\n", ans.second );
+			hfs.zeroFilledFormat( pendrive_ptr );			
+		}else if( !strcmp( operation, "ls" ) ){
+			if( argc > 3 ){
+				string file_name, file_ext;
+				unsigned short cluster = -1; 
+				char *token, *str, *tofree;
+				
+				tofree = str = strdup(argv[3]);  // We own str's memory now.
+				while ((token = strsep(&str, "/"))){
+					if( !strcmp( token, "" ) ){
+						cluster = 0;
+					}else{
+						if( strstr( token, "." ) != NULL ){
+							printErrorMessage();
+							exit(-1);
+						}else{
+							int new_cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							if( new_cluster == -1 ){
+								printf( "Directory not found!\n" );
+								return -1;
+							}else{
+								cluster = new_cluster;
+							}
+							
+						}
+					}
+				
+				}
+				
+				hfs.listDirectory( pendrive_ptr, cluster );
+				free(tofree);
+			}else {
+				printErrorMessage();
+				return -1;
+			}
+		
+		}else if( !strcmp( operation, "tree" ) ){
+			if( argc > 3 ){
+				string file_name, file_ext;
+				unsigned short cluster = -1; 
+				char *token, *str, *tofree;
+				
+				tofree = str = strdup(argv[3]);  // We own str's memory now.
+				while ((token = strsep(&str, "/"))){
+					if( !strcmp( token, "" ) ){
+						cluster = 0;
+					}else{
+						if( strstr( token, "." ) != NULL ){
+							printErrorMessage();
+							exit(-1);
+						}else{
+							int new_cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							if( new_cluster == -1 ){
+								printf( "Directory not found!\n" );
+								return -1;
+							}else{
+								cluster = new_cluster;
+							}
+							
+						}
+					}
+				
+				}
+				
+				hfs.treeListDirectory( pendrive_ptr, cluster, 0 );
+				free(tofree);
+			}else {
+				printErrorMessage();
+				return -1;
+			}
+		}else if( !strcmp( operation, "createfile" ) ){
+			if( argc > 4 ){
+				string file_name, file_ext;
+				unsigned short cluster = -1; 
+				char *token, *str, *tofree;
+				
+				pair<int,int> cluster_data;
 
-	fclose(pendrive_ptr);
+				tofree = str = strdup(argv[3]);  // We own str's memory now.
+				while ((token = strsep(&str, "/"))){
+					if( !strcmp( token, "" ) ){
+						cluster = 0;
+					}else{
+						if( strstr( token, "." ) != NULL ){
+							// const char *my_str_literal = "/novo/teste.txt";
+							char *name = NULL, *extension = NULL;
+							char *local_token, *local_str, *local_tofree;
+							
+							local_tofree = local_str = strdup(token);  // We own str's memory now.
+							while ((local_token = strsep(&local_str, "."))){
+								if( name == NULL ){
+									name = local_token;
+								}else{
+									extension = local_token;									
+									break;
+								}
+							}
+							
+							FILE* input = fopen( argv[4], "r+" );
+							if( input == NULL ){
+								printf( "Deu Ruim\n");
+								return -1;
+							}
+							
+							hfs.allocateFile(pendrive_ptr, cluster, string(name), string(extension), input );
+							
+							printf( "File created succesfully\n" );
+							free(local_tofree);
+							break;
+						}else{
+							int new_cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							if( new_cluster == -1 ){
+								hfs.createSubDirectory( pendrive_ptr, cluster, string(token) );
+								cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							}else{
+								cluster = new_cluster;
+							}
+							
+						}
+					}
+				
+				}
+			
+				free(tofree);
+
+			}else{
+				printErrorMessage();
+				exit(-1);
+			}		
+		}else if( !strcmp( operation, "createfolder" ) ){
+			if( argc > 3 ){
+				string file_name, file_ext;
+				unsigned short cluster = -1; 
+				char *token, *str, *tofree;
+				
+				tofree = str = strdup(argv[3]);  // We own str's memory now.
+				while ((token = strsep(&str, "/"))){
+					if( !strcmp( token, "" ) ){
+						cluster = 0;
+					}else{
+						if( strstr( token, "." ) != NULL ){
+							printErrorMessage();
+							exit(-1);
+						}else{
+							int new_cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							if( new_cluster == -1 ){
+								hfs.createSubDirectory( pendrive_ptr, cluster, string(token) );
+								cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							}else{
+								cluster = new_cluster;
+							}
+							
+						}
+					}
+				
+				}
+			
+				free(tofree);
+			}else {
+				printErrorMessage();
+				return -1;
+			}
+
+		}else if( !strcmp( operation, "transferfile" ) ){
+			if( argc > 4 ){
+				string file_name, file_ext;
+				unsigned short cluster = -1; 
+				char *token, *str, *tofree;
+				
+				pair<int,int> cluster_data;
+
+				tofree = str = strdup(argv[3]);  // We own str's memory now.
+				while ((token = strsep(&str, "/"))){
+					if( !strcmp( token, "" ) ){
+						cluster = 0;
+					}else{
+						if( strstr( token, "." ) != NULL ){
+							// const char *my_str_literal = "/novo/teste.txt";
+							char *name = NULL, *extension = NULL;
+							char *local_token, *local_str, *local_tofree;
+							
+							local_tofree = local_str = strdup(token);  // We own str's memory now.
+							while ((local_token = strsep(&local_str, "."))){
+								if( name == NULL ){
+									name = local_token;
+								}else{
+									extension = local_token;									
+									break;
+								}
+							}
+							
+							FILE* output = fopen( argv[4], "w+" );
+							if( output == NULL ){
+								printf( "Deu Ruim\n");
+								return -1;
+							}
+							
+							cluster_data = hfs.findFileCluster( pendrive_ptr, string(name), string(extension), cluster );
+							hfs.transferFile(pendrive_ptr, cluster_data.first, cluster_data.second, output );
+							
+							fclose(output);
+							printf( "File transfer succesfully\n" );
+							free(local_tofree);
+							break;
+						}else{
+							int new_cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							if( new_cluster == -1 ){
+								hfs.createSubDirectory( pendrive_ptr, cluster, string(token) );
+								cluster = hfs.findFolderCluster(pendrive_ptr, string(token), cluster );
+							}else{
+								cluster = new_cluster;
+							}
+							
+						}
+					}
+				
+				}
+			
+				free(tofree);
+
+			}else{
+				printErrorMessage();
+				exit(-1);
+			}
+
+		}else if( !strcmp( operation, "deletefolder" ) ){
+			
+		}else if( !strcmp( operation, "deletefile" ) ){
+			
+		}
+
+	}
 	
 	return 0;
 }

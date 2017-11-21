@@ -19,8 +19,11 @@ class HoneyFileSystem{
 		void transferFile(FILE* file, unsigned short file_cluster, unsigned short file_cluster_offset, FILE* output );
 		unsigned short seekFreeCluster();
 		void createSubDirectory( FILE* file, unsigned short folder_cluster, string name );
-		unsigned short findFolderCluster( FILE* file, string name, unsigned short entry_cluster );
-		pair<unsigned short,unsigned short> findFileCluster( FILE* file, string name, string extension, unsigned short entry_cluster );
+		int findFolderCluster( FILE* file, string name, unsigned short entry_cluster );
+		pair<int,int> findFileCluster( FILE* file, string name, string extension, unsigned short entry_cluster );
+		void listDirectory( FILE* file, unsigned short cluster );
+		void treeListDirectory( FILE* file, unsigned short cluster, int offset );
+
 };
 
 HoneyFileSystem::HoneyFileSystem(){
@@ -212,7 +215,7 @@ void HoneyFileSystem::transferFile(FILE* file, unsigned short file_cluster, unsi
 
 	/* Le a directory entry */
 	fseek( file, this->first_data_cluster+(file_cluster*(this->br->bytes_per_sector*this->br->numero_setores_por_cluster)), SEEK_SET );
-	fseek( file, file_cluster_offset*32, SEEK_CUR );
+	fseek( file, file_cluster_offset, SEEK_CUR );
 	directory_entry de;
 
 	fread(de.name_file, 1, 12, file);
@@ -307,11 +310,24 @@ void HoneyFileSystem::createSubDirectory( FILE* file, unsigned short folder_clus
 	de.first_cluster = folder_cluster;
 	de.WritetoFile(file);
 	
+	for(int i = 64; i < this->br->bytes_per_sector; i+=32 ){
+		directory_entry clean_entry;
+		clean_entry.WritetoFile(file);
+	}
+
+	for( int sector = 1; sector < this->br->numero_setores_por_cluster; sector++ ){
+		for(int i = 0; i < this->br->bytes_per_sector; i+=32 ){
+			directory_entry clean_entry;
+			clean_entry.WritetoFile(file);
+		}
+	}
+
+
 	fseek(file, 16, SEEK_SET );
 	this->ft->WritetoFile( file, this->br->bytes_per_sector );
 }
 
-unsigned short HoneyFileSystem::findFolderCluster( FILE* file, string name, unsigned short entry_cluster ){
+int HoneyFileSystem::findFolderCluster( FILE* file, string name, unsigned short entry_cluster ){
 	if( name.size() > 12 ){
 		printf("Name exceds the maximum permited by Honey File System. It will be limited to the first 12 caracters!\n" );
 	}
@@ -344,12 +360,12 @@ unsigned short HoneyFileSystem::findFolderCluster( FILE* file, string name, unsi
 
 	}
 
-	printf("Folder not found!\n");
-	exit(-1);
+	//printf("Folder not found!\n");
+	return -1;
 
 }
 
-pair<unsigned short,unsigned short> HoneyFileSystem::findFileCluster( FILE* file, string name, string extension, unsigned short entry_cluster ){
+pair<int,int> HoneyFileSystem::findFileCluster( FILE* file, string name, string extension, unsigned short entry_cluster ){
 	if( name.size() > 12 ){
 		printf("Name exceds the maximum permited by Honey File System. It will be limited to the first 12 caracters!\n" );
 	}
@@ -369,7 +385,7 @@ pair<unsigned short,unsigned short> HoneyFileSystem::findFileCluster( FILE* file
 		fread(&de.first_cluster, sizeof(short), 1, file );
 		fread(&de.size_file, sizeof(int), 1, file );
 		
-		pair< unsigned short, unsigned short> ans;
+		pair< int, int> ans;
 		int flag = 0, i = 0;
 		for( i = 0; i < name.size() && i < 12; i++ ){
 			if( de.name_file[i] != name[i] ){
@@ -403,6 +419,91 @@ pair<unsigned short,unsigned short> HoneyFileSystem::findFileCluster( FILE* file
 	}
 
 	printf("File not found!\n");
+	return pair< int, int>( -1, -1); 
 	exit(-1);
 
+}
+
+void HoneyFileSystem::listDirectory( FILE* file, unsigned short cluster ){
+	fseek( file, this->first_data_cluster+(cluster*(this->br->bytes_per_sector*this->br->numero_setores_por_cluster)), SEEK_SET );
+	int cont = 0;
+	for( int offset = 0; offset < this->br->bytes_per_sector; offset+=32 ){
+		directory_entry de;
+
+		fread(de.name_file, 1, 12, file);
+		fread(de.extension, 1, 3, file);
+		fread(&de.attribute_file, sizeof(char), 1, file);
+		fread(&de.creation_time, sizeof(short), 1, file );
+		fread(&de.creation_date, sizeof(short), 1, file );
+		fread(&de.last_acess_date, sizeof(short), 1, file );
+		fread(&de.last_modification_time, sizeof(short), 1, file );
+		fread(&de.last_modification_date, sizeof(short), 1, file );
+		fread(&de.first_cluster, sizeof(short), 1, file );
+		fread(&de.size_file, sizeof(int), 1, file );
+
+		if( de.name_file[0] == 0 ){
+			printf("\n");
+			return;
+		}else if( de.name_file[0] == 0xE5 ){
+			continue;
+		}
+
+		if( de.attribute_file == 0x10 ){
+			printf("\x1b[32m %17s \x1b[0m", de.name_file );
+		}else{
+			printf("\x1b[34m %17s \x1b[0m", strcat( strcat( (char*) de.name_file, "."), (char*) de.extension ) );
+		}	
+
+		cont++;
+		if( cont == 3 ){
+			printf("\n");
+			cont = 0;
+		}
+	}
+
+	printf("\n");
+}
+
+void HoneyFileSystem::treeListDirectory( FILE* file, unsigned short cluster, int desloc ){
+	fseek( file, this->first_data_cluster+(cluster*(this->br->bytes_per_sector*this->br->numero_setores_por_cluster)), SEEK_SET );
+	int cont = 0;
+	for( int offset = 0; offset < this->br->bytes_per_sector; offset+=32 ){
+		directory_entry de;
+
+		fread(de.name_file, 1, 12, file);
+		fread(de.extension, 1, 3, file);
+		fread(&de.attribute_file, sizeof(char), 1, file);
+		fread(&de.creation_time, sizeof(short), 1, file );
+		fread(&de.creation_date, sizeof(short), 1, file );
+		fread(&de.last_acess_date, sizeof(short), 1, file );
+		fread(&de.last_modification_time, sizeof(short), 1, file );
+		fread(&de.last_modification_date, sizeof(short), 1, file );
+		fread(&de.first_cluster, sizeof(short), 1, file );
+		fread(&de.size_file, sizeof(int), 1, file );
+
+		if( de.name_file[0] == 0 ){
+			printf("\n");
+			return;
+		}else if( de.name_file[0] == 0xE5 || de.name_file[0] == '.' ){
+			continue;
+		}
+
+		//printf("%d", desloc);
+		if( de.attribute_file == 0x10 ){
+			
+			for( int i = 0; i < desloc; i++ )
+				printf(" -> ");
+
+			printf("\x1b[32m %s \x1b[0m\n", de.name_file );
+			this->treeListDirectory( file, de.first_cluster, desloc+1);
+		}else{
+			for( int i = 0; i < desloc; i++ )
+				printf(" -> ");
+
+			printf("\x1b[34m %s \x1b[0m\n", strcat( strcat( (char*) de.name_file, "."), (char*) de.extension ) );
+		}
+
+	}
+
+	//printf("\n");
 }
